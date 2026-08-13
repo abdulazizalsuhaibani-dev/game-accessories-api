@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using static src.DTO.UserDTO;
+using static src.Entity.User;
 
 namespace src.Services.user
 {
@@ -19,6 +20,8 @@ namespace src.Services.user
         Task<bool> DeleteOneAsync(Guid id);
         // update
         Task<bool> UpdateOneAsync(Guid id, UserUpdateDto updateDto);
+        // change a role, admins only
+        Task<bool> UpdateRoleAsync(Guid id, UserRole role);
         Task<string> SignInAsync(UserCreateDto createDto);
 
     }

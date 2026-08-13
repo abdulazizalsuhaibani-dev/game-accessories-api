@@ -50,9 +50,16 @@ namespace src.DTO
             public string? Email { get; set; }
             public string? PhoneNumber { get; set; }
             public DateOnly BirthDate { get; set; }
-            public UserRole Role { get; set; }
+            // internal so it can never be bound from the request body
+            public UserRole Role { get; internal set; }
             public string? Password { get; set; }
             public Guid? CartId { get; set; }
+        }
+
+        // only used by the admin only role endpoint
+        public class UserRoleUpdateDto
+        {
+            public UserRole Role { get; set; }
         }
 
     }

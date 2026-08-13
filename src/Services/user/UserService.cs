@@ -46,17 +46,11 @@ namespace src.Services.user
             {
                 throw CustomException.BadRequest("You cant leave Email empty");
             }
-            else
-            {
-                if (user.Email.Contains("@admin.com"))
-                {
-                    user.Role = UserRole.Admin;
-                }
-                else
-                {
-                    user.Role = UserRole.Customer;
-                }
-            }
+            // everybody who signs up is a customer. the role is never taken from
+            // the email or from the request body, otherwise anyone could hand
+            // themselves an admin account. an existing admin promotes people
+            // through PUT api/v1/Users/{userId}/role
+            user.Role = UserRole.Customer;
             if (user.PhoneNumber == null)
             {
                 throw CustomException.BadRequest("You cant leave phone number empty");
@@ -91,7 +85,7 @@ namespace src.Services.user
                 {
                     throw CustomException.BadRequest("password should contains at least one number");
                 }
-                else if ((!user.Password.Contains("!")) && (!user.Password.Contains("@")) && (!user.Password.Contains("#")) && (!user.Password.Contains("$")) && (!user.Password.Contains("%")) && (!user.Password.Contains("^")) && (!user.Password.Contains("&")) && (!user.Password.Contains("*")) && (!user.Password.Contains("(")) && (!user.Password.Contains(")")) && (!user.Password.Contains("_")) && (!user.Password.Contains("[")) && (!user.Password.Contains("")))
+                else if ((!user.Password.Contains("!")) && (!user.Password.Contains("@")) && (!user.Password.Contains("#")) && (!user.Password.Contains("$")) && (!user.Password.Contains("%")) && (!user.Password.Contains("^")) && (!user.Password.Contains("&")) && (!user.Password.Contains("*")) && (!user.Password.Contains("(")) && (!user.Password.Contains(")")) && (!user.Password.Contains("_")) && (!user.Password.Contains("[")) && (!user.Password.Contains("]")))
                 {
                     throw CustomException.BadRequest("password should contains at least one special character (! - @ - # - $ - % - & - * - ( - ) - _ - [ - ])");
                 }
@@ -110,16 +104,21 @@ namespace src.Services.user
             // logic
             // find user by Email
             var foundUser = await _userRepo.FindByEmailAsync(createDto.Email);
+            // no user with that email, answer exactly like a wrong password
+            // so nobody can use sign in to find out which emails are registered
+            if (foundUser == null)
+                throw CustomException.UnAuthorized("Invalid email or password");
+
             // check password
             var isMatched = PasswordUtils.VerifyPassword(createDto.Password, foundUser.Password, foundUser.Salt);
             if (isMatched)
             {
-                // create token 
+                // create token
                 var tokenUtil = new TokenUtils(_config);
                 return tokenUtil.GenerateToken(foundUser);
             }
             // string
-            throw CustomException.UnAuthorized($"user with {foundUser.Email} password doesnt match");
+            throw CustomException.UnAuthorized("Invalid email or password");
         }
         // get by id
         public async Task<UserReadDto> GetByIdAsync(Guid id)
@@ -148,6 +147,13 @@ namespace src.Services.user
         public async Task<bool> UpdateOneAsync(Guid id, UserUpdateDto updateDto)
         {
             var foundUser = await _userRepo.GetByIdAsync(id);
+            // has to come before foundUser is read below, otherwise a missing
+            // user crashes here instead of returning a clean error
+            if (foundUser == null)
+            {
+                throw CustomException.BadRequest($"user with {id}  doesnt exist");
+            }
+
             var userTable = await _userRepo.GetAllAsync();
             var duplicatEmail = userTable.Any(x => x.Email == updateDto.Email && x.UserId != foundUser.UserId);
             var duplicatUsername = userTable.Any(x => x.Username == updateDto.Username && x.UserId != foundUser.UserId);
@@ -163,10 +169,6 @@ namespace src.Services.user
             if (duplicatPhone)
             {
                 throw CustomException.BadRequest($"phone number already exist try another one");
-            }
-            if (foundUser == null)
-            {
-                throw CustomException.BadRequest($"user with {id}  doesnt exist");
             }
             else
             {
@@ -213,14 +215,10 @@ namespace src.Services.user
                 {
                     updateDto.CartId = foundUser.CartId;
                 }
-                if (foundUser.Email.Contains("@admin.com"))
-                {
-                    updateDto.Role = UserRole.Admin;
-                }
-                else
-                {
-                    updateDto.Role = UserRole.Customer;
-                }
+                // keep whatever role the user already has. deriving it from the
+                // email let a customer promote themselves just by editing their
+                // email to something containing "@admin.com"
+                updateDto.Role = foundUser.Role ?? UserRole.Customer;
                 if (updateDto.BirthDate.Equals(DateOnly.Parse("0001-01-01")))
                 {
                     updateDto.BirthDate = foundUser.BirthDate;
@@ -232,6 +230,18 @@ namespace src.Services.user
                 return await _userRepo.UpdateOneAsync(foundUser);
             }
 
+        }
+        // change a role. the controller keeps this admin only
+        public async Task<bool> UpdateRoleAsync(Guid id, UserRole role)
+        {
+            var foundUser = await _userRepo.GetByIdAsync(id);
+            if (foundUser == null)
+            {
+                throw CustomException.NotFound($"user with {id} doesnt exist");
+            }
+
+            foundUser.Role = role;
+            return await _userRepo.UpdateOneAsync(foundUser);
         }
         public async Task<List<UserReadDto>> GetAllAsync()
         {

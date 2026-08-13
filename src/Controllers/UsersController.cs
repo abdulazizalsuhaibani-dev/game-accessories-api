@@ -77,6 +77,9 @@ namespace src.Controllers
         [HttpDelete("{userId}")]
         public async Task<ActionResult> DeleteUser(Guid userId)
         {
+            // a customer may only delete their own account, an admin may delete any
+            AuthorizationUtils.EnsureOwnerOrAdmin(User, userId);
+
             var foundUser = await _userService.GetByIdAsync(userId);
             if (foundUser == null)
                 throw CustomException.UnAuthorized($"user with {userId} does not exist");
@@ -88,8 +91,20 @@ namespace src.Controllers
         [HttpPut("{userId}")]
         public async Task<ActionResult<UserReadDto>> UpdateUser(Guid userId, UserUpdateDto updateDto)
         {
+            // a customer may only update their own account, an admin may update any
+            AuthorizationUtils.EnsureOwnerOrAdmin(User, userId);
+
             var userRead = await _userService.UpdateOneAsync(userId, updateDto);
             return Ok($"{userRead} successfully updated");
+        }
+
+        // the only way to hand out the Admin role, and only an admin can call it
+        [Authorize(Roles = "Admin")]
+        [HttpPut("{userId}/role")]
+        public async Task<ActionResult> UpdateUserRole(Guid userId, UserRoleUpdateDto updateDto)
+        {
+            var isUpdated = await _userService.UpdateRoleAsync(userId, updateDto.Role);
+            return isUpdated ? Ok("user role successfully updated") : StatusCode(500);
         }
 
     }

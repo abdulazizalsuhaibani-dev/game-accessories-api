@@ -62,7 +62,6 @@ builder.Services.AddCors(options =>
                           policy.WithOrigins("http://localhost:3000", "https://game-accessories-store.onrender.com")
                             .AllowAnyHeader()
                             .AllowAnyMethod()
-                            .SetIsOriginAllowed((host) => true)
                             .AllowCredentials();
                       });
 });
