@@ -109,6 +109,15 @@ namespace src.Services.user
             if (foundUser == null)
                 throw CustomException.UnAuthorized("Invalid email or password");
 
+            // an empty password, or a stored row with no credential, used to
+            // reach VerifyPassword and throw on the null. that turned a missing
+            // password field into a 500 for real emails and a 401 for the rest,
+            // which is the same enumeration oracle the check above closes
+            if (string.IsNullOrEmpty(createDto.Password)
+                || string.IsNullOrEmpty(foundUser.Password)
+                || foundUser.Salt == null)
+                throw CustomException.UnAuthorized("Invalid email or password");
+
             // check password
             var isMatched = PasswordUtils.VerifyPassword(createDto.Password, foundUser.Password, foundUser.Salt);
             if (isMatched)
@@ -192,6 +201,11 @@ namespace src.Services.user
                 {
                     updateDto.PhoneNumber = foundUser.PhoneNumber;
                 }
+                // remember whether the caller actually sent a new password. the
+                // null branch below copies the stored hash into the dto, and
+                // hashing that a second time would leave a credential nobody
+                // can sign in with and no way to reset it
+                bool passwordChanged = updateDto.Password != null;
                 if (updateDto.Password == null)
                 {
                     updateDto.Password = foundUser.Password;
@@ -224,9 +238,12 @@ namespace src.Services.user
                     updateDto.BirthDate = foundUser.BirthDate;
                 }
                 _mapper.Map(updateDto, foundUser);
-                PasswordUtils.HashPassword(foundUser.Password, out string hashedPassword, out byte[] salt);
-                foundUser.Password = hashedPassword;
-                foundUser.Salt = salt;
+                if (passwordChanged)
+                {
+                    PasswordUtils.HashPassword(updateDto.Password!, out string hashedPassword, out byte[] salt);
+                    foundUser.Password = hashedPassword;
+                    foundUser.Salt = salt;
+                }
                 return await _userRepo.UpdateOneAsync(foundUser);
             }
 
@@ -238,6 +255,16 @@ namespace src.Services.user
             if (foundUser == null)
             {
                 throw CustomException.NotFound($"user with {id} doesnt exist");
+            }
+
+            // signing up can only ever create a customer, so demoting the last
+            // admin leaves nobody able to reach an admin endpoint and the only
+            // way back is editing the row in postgres by hand
+            if (foundUser.Role == UserRole.Admin && role != UserRole.Admin)
+            {
+                var admins = await _userRepo.GetAllAsync();
+                if (admins.Count(x => x.Role == UserRole.Admin) <= 1)
+                    throw CustomException.BadRequest("Cannot demote the last remaining admin");
             }
 
             foundUser.Role = role;

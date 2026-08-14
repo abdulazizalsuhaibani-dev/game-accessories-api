@@ -18,6 +18,12 @@ namespace src.Middlewares
             }
             catch (CustomException ex)
             {
+                // touching the status code after the body started streaming
+                // throws from inside the catch, which escapes InvokeAsync and
+                // kills the connection without a single log line
+                if (context.Response.HasStarted)
+                    throw;
+
                 context.Response.StatusCode = ex.StatusCode;
                 context.Response.ContentType = "application/json";
                 var response = new { ex.StatusCode, ex.Message };

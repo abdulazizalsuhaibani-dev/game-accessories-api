@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using src.Services.review;
+using src.Utils;
 using static src.DTO.ReviewDTO;
 namespace src.Controllers
 {
@@ -38,6 +39,9 @@ namespace src.Controllers
         [HttpPost]
         public async Task<ActionResult<ReadReviewDto>> CreateReview(CreateReviewDto createDto)
         {
+            // stops a customer from posting a review under somebody else's name
+            AuthorizationUtils.EnsureOwnerOrAdmin(User, createDto.UserId);
+
             var review = await _reviewService.CreateReviewAsync(createDto);
             return CreatedAtAction(nameof(GetReviewById), new { id = review.ReviewId }, review);
         }
@@ -47,6 +51,9 @@ namespace src.Controllers
         [HttpPut("{id}")]
         public async Task<ActionResult<ReadReviewDto>> UpdateReview(Guid id, UpdateReviewDto updateDto)
         {
+            var foundReview = await _reviewService.GetReviewByIdAsync(id);
+            AuthorizationUtils.EnsureOwnerOrAdmin(User, foundReview.UserId);
+
             var review = await _reviewService.UpdateReviewAsync(id, updateDto);
             return Ok(review);
         }
@@ -55,6 +62,9 @@ namespace src.Controllers
         [HttpDelete("{id}")]
         public async Task<ActionResult<bool>> DeleteReview(Guid id)
         {
+            var foundReview = await _reviewService.GetReviewByIdAsync(id);
+            AuthorizationUtils.EnsureOwnerOrAdmin(User, foundReview.UserId);
+
             var isDeleted = await _reviewService.DeleteReviewAsync(id);
             return Ok(isDeleted);
         }

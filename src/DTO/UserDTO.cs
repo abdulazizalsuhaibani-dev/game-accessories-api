@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Threading.Tasks;
 using src.Entity;
@@ -59,7 +60,11 @@ namespace src.DTO
         // only used by the admin only role endpoint
         public class UserRoleUpdateDto
         {
-            public UserRole Role { get; set; }
+            // nullable on purpose. UserRole.Admin is the zero value, so a plain
+            // UserRole would silently read as Admin whenever the caller leaves
+            // the field out or misspells it, and quietly promote the target
+            [Required(ErrorMessage = "Role is required and must be either Admin or Customer")]
+            public UserRole? Role { get; set; }
         }
 
     }

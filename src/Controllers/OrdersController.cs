@@ -32,8 +32,10 @@ namespace scr.Controller
         public async Task<ActionResult<OrderReadDTO>> GetOrderById([FromRoute] Guid orderId)
         {
             var foundOrder = await _orderService.GetByIdAsync(orderId);
-            if (foundOrder == null)
-                return NotFound("order not found");
+
+            // an order carries a home address, only its owner and an admin may read it
+            AuthorizationUtils.EnsureOwnerOrAdmin(User, foundOrder.UserId);
+
             return Ok(foundOrder);
         }
         // Gets a user's orders by its ID in ascending.
@@ -42,6 +44,8 @@ namespace scr.Controller
         public async Task<ActionResult<List<OrderReadDTO>>> GetOrdersByUserID([FromRoute] Guid userId,
             [FromQuery] PaginationOptions paginationOptions)
         {
+            AuthorizationUtils.EnsureOwnerOrAdmin(User, userId);
+
             var userOrders = await _orderService.GetByUserIdAsync(userId, paginationOptions);
             return Ok(userOrders.OrderBy(o => o.OrderDate));
         }
@@ -52,6 +56,8 @@ namespace scr.Controller
         public async Task<ActionResult<List<OrderReadDTO>>> GetOrdersHistoryByUserID([FromRoute] Guid userId,
             [FromQuery] PaginationOptions paginationOptions)
         {
+            AuthorizationUtils.EnsureOwnerOrAdmin(User, userId);
+
             var userOrders = await _orderService.GetHistoryByUserIdAsync(userId, paginationOptions);
             return Ok(userOrders.OrderByDescending(o => o.OrderDate));
         }
@@ -62,6 +68,9 @@ namespace scr.Controller
         [HttpPost]
         public async Task<ActionResult<OrderReadDTO>> CreateOrder([FromBody] OrderCreateDTO newOrder)
         {
+            // stops a customer from placing an order in somebody else's name
+            AuthorizationUtils.EnsureOwnerOrAdmin(User, newOrder.UserId);
+
             var createdOrder = await _orderService.CreateOneAsync(newOrder);
             return createdOrder != null ?
                 Created($"api/v1/orders/{createdOrder.Id}", createdOrder) :
@@ -99,6 +108,9 @@ namespace scr.Controller
         [HttpDelete("{orderId}")]
         public async Task<ActionResult> CancelOrder(Guid orderId)
         {
+            var foundOrder = await _orderService.GetByIdAsync(orderId);
+            AuthorizationUtils.EnsureOwnerOrAdmin(User, foundOrder.UserId);
+
             var isDeleted = await _orderService.DeleteOneAsync(orderId);
             return isDeleted ? NoContent() : NotFound("Order ID not found");
         }
