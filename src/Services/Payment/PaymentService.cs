@@ -31,7 +31,9 @@ namespace src.Services.Payment
             Cart cart = await _paymentRepo.GetCart(createDto.CartId);
             if (cart == null)
             {
-                CustomException.NotFound("Cart not found.");           
+                // the exception used to be built and dropped, so a missing cart
+                // fell through to cart.TotalPrice below and answered with a 500
+                throw CustomException.NotFound("Cart not found.");
             }
 
             if (createDto.CouponId != null) 
@@ -73,10 +75,15 @@ namespace src.Services.Payment
         public async Task<bool> UpdateOneAsync(Guid paymentId, PaymentUpdateDto updateDto)
         {
             Cart cart = await _paymentRepo.GetCart(updateDto.CartId);
+            if (cart == null)
+            {
+                throw CustomException.NotFound("Cart not found.");
+            }
+
             var foundPayment = await _paymentRepo.GetByIdAsync(paymentId);
             if (foundPayment is null)
             {
-                CustomException.NotFound("Payment not found"); 
+                throw CustomException.NotFound("Payment not found");
             }
             
             if (updateDto.CouponId != null) 

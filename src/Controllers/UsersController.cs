@@ -4,6 +4,7 @@ using src.Services.user;
 using static src.DTO.UserDTO;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
+using static src.Entity.User;
 
 namespace src.Controllers
 {
@@ -103,7 +104,12 @@ namespace src.Controllers
         [HttpPut("{userId}/role")]
         public async Task<ActionResult> UpdateUserRole(Guid userId, UserRoleUpdateDto updateDto)
         {
-            var isUpdated = await _userService.UpdateRoleAsync(userId, updateDto.Role);
+            // the enum converter also accepts raw numbers, so {"role": 7} would
+            // reach the database as an undefined value and blow up on save
+            if (updateDto.Role == null || !Enum.IsDefined(typeof(UserRole), updateDto.Role.Value))
+                throw CustomException.BadRequest("Role must be either Admin or Customer");
+
+            var isUpdated = await _userService.UpdateRoleAsync(userId, updateDto.Role.Value);
             return isUpdated ? Ok("user role successfully updated") : StatusCode(500);
         }
 
